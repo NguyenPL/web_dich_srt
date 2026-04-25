@@ -4,3 +4,4 @@ pysrt
 gTTS
 deep-translator
 openai
+imageio-ffmpeg

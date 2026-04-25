@@ -3,6 +3,8 @@ import json
 import uuid
 import threading
 import pysrt
+import subprocess
+import imageio_ffmpeg
 import time
 from gtts import gTTS
 from datetime import datetime
@@ -12,7 +14,6 @@ from deep_translator import GoogleTranslator
 from openai import OpenAI
 
 app = Flask(__name__)
-
 app.secret_key = "NGUYEN_PL"
 
 USERS = {
@@ -29,9 +30,14 @@ def login_required(func):
         return func(*args, **kwargs)
     return wrapper
 
+
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
 HISTORY_FILE = "history.json"
+
+VIDEO_FOLDER = "videos"
+
+os.makedirs(VIDEO_FOLDER, exist_ok=True)
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -382,9 +388,62 @@ def audio_page():
     return render_template("index.html", page="audio")
 
 
-@app.route("/render")
+@app.route("/render", methods=["GET", "POST"])
 @login_required
 def render_page():
+    if request.method == "POST":
+        video = request.files.get("video")
+        subtitle = request.files.get("subtitle")
+
+        if not video or not subtitle:
+            return render_template(
+                "index.html",
+                page="render",
+                error="Vui lòng chọn video và file phụ đề"
+            )
+
+        job_id = str(uuid.uuid4())[:8]
+
+        video_name = f"{job_id}_{video.filename}"
+        subtitle_name = f"{job_id}_{subtitle.filename}"
+        output_name = f"render_{job_id}.mp4"
+
+        video_path = os.path.join(VIDEO_FOLDER, video_name)
+        subtitle_path = os.path.join(VIDEO_FOLDER, subtitle_name)
+        output_path = os.path.join(OUTPUT_FOLDER, output_name)
+
+        video.save(video_path)
+        subtitle.save(subtitle_path)
+
+        ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+
+        subtitle_path_fixed = subtitle_path.replace("\\", "/")
+
+        cmd = [
+            ffmpeg_path,
+            "-y",
+            "-i", video_path,
+            "-vf", f"subtitles='{subtitle_path_fixed}'",
+            "-c:a", "copy",
+            output_path
+        ]
+
+        try:
+            subprocess.run(cmd, check=True)
+
+            return render_template(
+                "index.html",
+                page="render",
+                output_file=output_name
+            )
+
+        except Exception as e:
+            return render_template(
+                "index.html",
+                page="render",
+                error=str(e)
+            )
+
     return render_template("index.html", page="render")
 
 

@@ -406,8 +406,39 @@ function runTTS(){
 
 <div class="card dev-box">
     <div class="dev-icon">🎥</div>
-    <h2>Tính năng đang phát triển</h2>
-    <p class="subtitle">Sau này có thể thêm auto render video, ghép phụ đề và xuất video.</p>
+    {% if page == "render" %}
+<h1>Auto Render Video</h1>
+<p class="subtitle">Upload video và file SRT để ghép phụ đề cứng vào video.</p>
+
+<div class="card" style="max-width:760px">
+
+    {% if error %}
+    <div class="notice" style="background:#fef2f2;color:#dc2626;white-space:pre-wrap">
+        Lỗi: {{ error }}
+    </div>
+    {% endif %}
+
+    {% if output_file %}
+    <div class="notice">
+        ✅ Render hoàn thành!
+    </div>
+
+    <a class="btn" href="/download/{{ output_file }}">
+        ⬇ Tải video đã render
+    </a>
+    {% endif %}
+
+    <form method="POST" enctype="multipart/form-data">
+        <label>Chọn video</label>
+        <input type="file" name="video" accept=".mp4,.mov,.mkv" required>
+
+        <label>Chọn phụ đề SRT</label>
+        <input type="file" name="subtitle" accept=".srt" required>
+
+        <button type="submit">🎥 Bắt đầu render</button>
+    </form>
+</div>
+{% endif %}
 </div>
 {% endif %}
 
