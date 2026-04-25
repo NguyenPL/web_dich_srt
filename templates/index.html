@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>PROTOOL</title>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#111827}
+.app{display:flex;min-height:100vh}
+.sidebar{width:260px;background:white;border-right:1px solid #e5e7eb;padding:28px 20px}
+.logo{font-size:24px;font-weight:900;margin-bottom:45px}
+.logo span{color:#2563eb}
+.menu-title{font-size:13px;color:#9ca3af;font-weight:bold;margin:28px 0 14px}
+.menu-item{display:block;text-decoration:none;padding:14px 16px;border-radius:14px;color:#6b7280;font-weight:700;margin-bottom:8px}
+.menu-item.active{background:#eef4ff;color:#2563eb}
+.main{flex:1;padding:30px 44px}
+.topbar{display:flex;justify-content:flex-end;align-items:center;gap:18px}
+.badge{background:white;border:1px solid #e5e7eb;border-radius:999px;padding:11px 18px;font-weight:800}
+.avatar{width:42px;height:42px;border-radius:50%;background:#2563eb;color:white;display:flex;align-items:center;justify-content:center;font-weight:bold}
+h1{font-size:38px;margin:36px 0 8px}
+.subtitle{color:#6b7280;font-size:18px;margin-bottom:32px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-bottom:28px}
+.card{background:white;border:1px solid #e5e7eb;border-radius:24px;padding:30px;box-shadow:0 10px 28px rgba(0,0,0,.04)}
+.icon{width:54px;height:54px;border-radius:16px;background:#fff7ed;display:flex;align-items:center;justify-content:center;font-size:25px;margin-bottom:24px}
+.card-title{color:#6b7280;font-weight:800;margin-bottom:12px}
+.number{font-size:40px;font-weight:900}
+.grid{display:grid;grid-template-columns:1fr 2fr;gap:24px}
+.upload-box{border:2px dashed #c7d2fe;border-radius:20px;background:#f8fbff;padding:32px;text-align:center;margin:18px 0}
+input,select{width:100%;padding:15px;border-radius:12px;border:1px solid #d1d5db;font-size:15px;background:white;margin-top:12px}
+label{display:block;font-weight:800;margin-top:18px}
+button,.btn{display:inline-block;text-align:center;text-decoration:none;width:100%;margin-top:18px;padding:16px;border:none;border-radius:14px;background:#111827;color:white;font-weight:800;font-size:16px;cursor:pointer}
+button:hover,.btn:hover{background:#2563eb}
+.btn-light{background:white;color:#111827;border:1px solid #e5e7eb;width:auto}
+table{width:100%;border-collapse:collapse}
+th{color:#9ca3af;font-size:13px;text-align:left;padding:14px;border-bottom:1px solid #e5e7eb}
+td{padding:17px 14px;border-bottom:1px solid #f1f5f9;font-weight:700}
+.status{padding:8px 12px;border-radius:999px;font-size:13px;background:#ecfdf5;color:#16a34a}
+.status.fail{background:#fef2f2;color:#dc2626}
+.download{text-decoration:none;background:#eff6ff;color:#2563eb;padding:9px 12px;border-radius:10px;font-weight:bold}
+.empty{color:#9ca3af;text-align:center;padding:30px}
+.progress-wrap{background:#e5e7eb;border-radius:999px;height:24px;overflow:hidden;margin:25px 0}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#22c55e);transition:.3s}
+.notice{padding:16px;border-radius:14px;background:#eff6ff;color:#1d4ed8;font-weight:700;margin-top:20px}
+.dev-box{text-align:center;padding:80px 30px}
+.dev-icon{font-size:70px;margin-bottom:20px}
+.help{font-size:13px;color:#6b7280;margin-top:8px}
+@media(max-width:1000px){.sidebar{display:none}.stats,.grid{grid-template-columns:1fr}.main{padding:24px}}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<aside class="sidebar">
+    <div class="logo">PRO<span>TOOL</span></div>
+
+    <div class="menu-title">CÔNG CỤ</div>
+    <a class="menu-item {% if page=='dashboard' %}active{% endif %}" href="/dashboard">▦ Tổng Quan</a>
+    <a class="menu-item {% if page=='translate' or page=='progress' %}active{% endif %}" href="/translate">文 Dịch SRT</a>
+    <a class="menu-item {% if page=='audio' %}active{% endif %}" href="/audio">🎙 Tool Âm Thanh</a>
+    <a class="menu-item {% if page=='render' %}active{% endif %}" href="/render">🎥 Auto Render</a>
+
+    <div class="menu-title">HỆ THỐNG</div>
+    <a class="menu-item {% if page=='history' %}active{% endif %}" href="/history">📁 Lịch sử xử lý</a>
+    <a class="menu-item {% if page=='settings' %}active{% endif %}" href="/settings">⚙ Cài đặt</a>
+</aside>
+
+<main class="main">
+
+<div class="topbar">
+    <div class="badge">🟢 Local Tool</div>
+    <div>🔔</div>
+    <div class="avatar">T</div>
+    <strong>Admin</strong>
+</div>
+
+{% if page == "dashboard" %}
+<h1>Tổng Quan Hoạt Động</h1>
+<p class="subtitle">Quản lý dịch phụ đề SRT tiếng Trung sang nhiều ngôn ngữ trên máy tính của bạn.</p>
+
+<section class="stats">
+    <div class="card">
+        <div class="icon">📄</div>
+        <div class="card-title">Tổng tệp đã xử lý</div>
+        <div class="number">{{ total_files }}</div>
+    </div>
+
+    <div class="card">
+        <div class="icon" style="background:#ecfdf5">✅</div>
+        <div class="card-title">Tệp hoàn thành</div>
+        <div class="number">{{ success_files }}</div>
+    </div>
+
+    <div class="card">
+        <div class="icon" style="background:#eff6ff">📝</div>
+        <div class="card-title">Tổng dòng phụ đề</div>
+        <div class="number">{{ total_lines }}</div>
+    </div>
+</section>
+
+<section class="grid">
+    <div class="card">
+        <h2>Dịch nhanh</h2>
+        <p style="color:#6b7280">Dịch SRT Trung Quốc sang Việt, Anh, Hàn, Nhật.</p>
+        <a class="btn" href="/translate">Bắt đầu dịch</a>
+    </div>
+
+    <div class="card">
+        <h2>Lịch sử gần đây</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>TÊN TỆP</th>
+                    <th>NGÔN NGỮ</th>
+                    <th>CHẾ ĐỘ</th>
+                    <th>TRẠNG THÁI</th>
+                    <th>TẢI</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if history %}
+                    {% for item in history %}
+                    <tr>
+                        <td>{{ item.file_name }}</td>
+                        <td>{{ item.target_lang }}</td>
+                        <td>{{ item.mode }}</td>
+                        <td>
+                            {% if item.status == "Hoàn thành" %}
+                            <span class="status">Hoàn thành</span>
+                            {% else %}
+                            <span class="status fail">Thất bại</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.output_name %}
+                            <a class="download" href="/download/{{ item.output_name }}">⬇ Tải</a>
+                            {% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                <tr><td colspan="5" class="empty">Chưa có lịch sử.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+
+{% if page == "translate" %}
+<h1>Dịch SRT</h1>
+<p class="subtitle">Upload file .srt tiếng Trung, chọn ngôn ngữ đích và chế độ dịch.</p>
+
+<div class="card" style="max-width:760px">
+    <form method="POST" enctype="multipart/form-data">
+
+        <div class="upload-box">
+            <strong>📤 Chọn file SRT</strong>
+            <input type="file" name="file" accept=".srt" required>
+        </div>
+
+        <label>Ngôn ngữ muốn dịch sang</label>
+        <select name="target_lang" required>
+            <option value="vi">Tiếng Việt</option>
+            <option value="en">Tiếng Anh</option>
+            <option value="ko">Tiếng Hàn</option>
+            <option value="ja">Tiếng Nhật</option>
+        </select>
+
+        <label>Chế độ dịch</label>
+        <select name="mode" id="mode" onchange="toggleApiKey()">
+            <option value="google">Google Translate — Miễn phí</option>
+            <option value="openai">OpenAI — Chất lượng cao</option>
+        </select>
+
+        <div id="apiBox" style="display:none">
+            <label>OpenAI API Key</label>
+            <input type="password" name="api_key" placeholder="Dán API key OpenAI vào đây">
+            <div class="help">
+                API key chỉ dùng cho lần dịch này. Nếu chưa nạp tiền API, hãy dùng Google Translate.
+            </div>
+        </div>
+
+        <button type="submit">Bắt đầu dịch</button>
+    </form>
+</div>
+
+<script>
+function toggleApiKey(){
+    const mode = document.getElementById("mode").value;
+    document.getElementById("apiBox").style.display = mode === "openai" ? "block" : "none";
+}
+</script>
+{% endif %}
+
+
+{% if page == "progress" %}
+<h1>Đang dịch phụ đề</h1>
+<p class="subtitle">Vui lòng chờ, không tắt cửa sổ này trong lúc xử lý.</p>
+
+<div class="card" style="max-width:760px">
+    <h2>Tiến trình xử lý</h2>
+
+    <div class="progress-wrap">
+        <div id="bar" class="progress-bar"></div>
+    </div>
+
+    <h2 id="percent">0%</h2>
+    <p id="detail" style="color:#6b7280;font-weight:700">Đang chuẩn bị...</p>
+
+    <div id="result"></div>
+</div>
+
+<script>
+const jobId = "{{ job_id }}";
+
+function checkProgress(){
+    fetch("/progress-data/" + jobId)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById("bar").style.width = data.percent + "%";
+            document.getElementById("percent").innerText = data.percent + "%";
+            document.getElementById("detail").innerText =
+                "Đã xử lý " + data.current + " / " + data.total + " dòng";
+
+            if(data.status === "done"){
+                document.getElementById("result").innerHTML =
+                    '<a class="btn" href="/download/' + data.download + '">⬇ Tải file đã dịch</a>';
+                return;
+            }
+
+            if(data.status === "error"){
+                document.getElementById("result").innerHTML =
+                    '<div class="notice" style="background:#fef2f2;color:#dc2626">Lỗi: ' + data.error + '</div>';
+                return;
+            }
+
+            setTimeout(checkProgress, 1000);
+        });
+}
+
+checkProgress();
+</script>
+{% endif %}
+
+
+{% if page == "history" %}
+<h1>Lịch sử xử lý</h1>
+<p class="subtitle">Danh sách các file SRT đã dịch.</p>
+
+<div class="card">
+    <a class="btn btn-light" href="/clear-history">🗑 Xóa lịch sử</a>
+    <br><br>
+
+    <table>
+        <thead>
+            <tr>
+                <th>TÊN TỆP</th>
+                <th>SỐ DÒNG</th>
+                <th>NGÔN NGỮ</th>
+                <th>CHẾ ĐỘ</th>
+                <th>THỜI GIAN</th>
+                <th>TRẠNG THÁI</th>
+                <th>TẢI</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% if history %}
+                {% for item in history %}
+                <tr>
+                    <td>{{ item.file_name }}</td>
+                    <td>{{ item.line_count }}</td>
+                    <td>{{ item.target_lang }}</td>
+                    <td>{{ item.mode }}</td>
+                    <td>{{ item.time }}</td>
+                    <td>
+                        {% if item.status == "Hoàn thành" %}
+                        <span class="status">Hoàn thành</span>
+                        {% else %}
+                        <span class="status fail">Thất bại</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.output_name %}
+                        <a class="download" href="/download/{{ item.output_name }}">⬇ Tải</a>
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+            <tr><td colspan="7" class="empty">Chưa có file nào được xử lý.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+
+{% if page == "settings" %}
+<h1>Cài đặt</h1>
+<p class="subtitle">Khu vực cấu hình hệ thống.</p>
+
+<div class="card" style="max-width:760px">
+    <h2>Thông tin hiện tại</h2>
+    <p><strong>Ngôn ngữ nguồn:</strong> Tiếng Trung Quốc</p>
+    <p><strong>Ngôn ngữ đích:</strong> Việt / Anh / Hàn / Nhật</p>
+    <p><strong>Chế độ dịch:</strong> Google Translate hoặc OpenAI</p>
+    <p><strong>Thư mục lưu file:</strong> D:\web_dich_srt\outputs</p>
+
+    <div class="notice">
+        Nếu dùng OpenAI, bạn cần API key có billing/credit.
+    </div>
+</div>
+{% endif %}
+
+
+{% if page == "audio" %}
+<h1>Tool Âm Thanh</h1>
+
+<div class="card dev-box">
+    <div class="dev-icon">🎙</div>
+    <h2>Tính năng đang phát triển</h2>
+    <p class="subtitle">Sau này có thể thêm tách âm thanh, tạo voice AI, chuyển văn bản thành giọng nói.</p>
+</div>
+{% endif %}
+
+
+{% if page == "render" %}
+<h1>Auto Render</h1>
+
+<div class="card dev-box">
+    <div class="dev-icon">🎥</div>
+    <h2>Tính năng đang phát triển</h2>
+    <p class="subtitle">Sau này có thể thêm auto render video, ghép phụ đề và xuất video.</p>
+</div>
+{% endif %}
+
+</main>
+</div>
+</body>
+</html>

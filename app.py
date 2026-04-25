@@ -1,0 +1,361 @@
+import os
+import json
+import uuid
+import threading
+import pysrt
+import time
+from datetime import datetime
+from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify
+from deep_translator import GoogleTranslator
+from openai import OpenAI
+
+app = Flask(__name__)
+
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "outputs"
+HISTORY_FILE = "history.json"
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+jobs = {}
+
+LANGUAGES = {
+    "vi": "Tiếng Việt",
+    "en": "Tiếng Anh",
+    "ko": "Tiếng Hàn",
+    "ja": "Tiếng Nhật"
+}
+
+GOOGLE_LANG_MAP = {
+    "vi": "vi",
+    "en": "en",
+    "ko": "ko",
+    "ja": "ja"
+}
+
+
+def load_history():
+    if not os.path.exists(HISTORY_FILE):
+        return []
+
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
+
+
+def save_history(history):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+
+def split_batches(items, batch_size):
+    for i in range(0, len(items), batch_size):
+        yield i, items[i:i + batch_size]
+
+
+def translate_google_batch(texts, target_lang):
+    results = []
+    translator = GoogleTranslator(
+        source="zh-CN",
+        target=GOOGLE_LANG_MAP.get(target_lang, "vi")
+    )
+
+    for text in texts:
+        if not text.strip():
+            results.append(text)
+            continue
+
+        try:
+            results.append(translator.translate(text))
+            time.sleep(0.15)
+        except Exception:
+            results.append(text)
+
+    return results
+
+
+def translate_openai_batch(texts, target_lang, api_key):
+    client = OpenAI(api_key=api_key)
+
+    target_name = LANGUAGES.get(target_lang, "Tiếng Việt")
+
+    numbered_text = "\n".join([
+        f"{i + 1}. {text}" for i, text in enumerate(texts)
+    ])
+
+    prompt = f"""
+Bạn là chuyên gia dịch phụ đề SRT từ tiếng Trung sang {target_name}.
+
+Yêu cầu bắt buộc:
+- Dịch tự nhiên, dễ hiểu.
+- Giữ đúng nghĩa thoại.
+- Câu ngắn gọn, phù hợp phụ đề video.
+- Không thêm giải thích.
+- Không thêm chú thích.
+- Không bỏ dòng.
+- Không gộp dòng.
+- Giữ nguyên số thứ tự đầu dòng.
+- Mỗi dòng dịch tương ứng đúng với một dòng gốc.
+- Chỉ trả về danh sách bản dịch.
+
+Nội dung cần dịch:
+{numbered_text}
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.2
+    )
+
+    raw = response.choices[0].message.content.strip().split("\n")
+
+    translations = []
+
+    for line in raw:
+        line = line.strip()
+
+        if not line:
+            continue
+
+        if ". " in line:
+            translations.append(line.split(". ", 1)[1].strip())
+        elif "、" in line:
+            translations.append(line.split("、", 1)[1].strip())
+        else:
+            translations.append(line)
+
+    while len(translations) < len(texts):
+        translations.append(texts[len(translations)])
+
+    return translations[:len(texts)]
+
+
+def translate_batch(texts, mode, target_lang, api_key):
+    if mode == "openai":
+        return translate_openai_batch(texts, target_lang, api_key)
+
+    return translate_google_batch(texts, target_lang)
+
+
+def translate_worker(
+    job_id,
+    input_path,
+    output_path,
+    original_name,
+    output_name,
+    mode,
+    target_lang,
+    api_key
+):
+    try:
+        try:
+            subs = pysrt.open(input_path, encoding="utf-8")
+        except:
+            subs = pysrt.open(input_path, encoding="utf-8-sig")
+
+        total = len(subs)
+
+        jobs[job_id]["total"] = total
+        jobs[job_id]["status"] = "processing"
+
+        texts = [sub.text.replace("\n", " ").strip() for sub in subs]
+
+        if mode == "openai":
+            batch_size = 20
+        else:
+            batch_size = 10
+
+        for start_index, batch_texts in split_batches(texts, batch_size):
+            translated_batch = translate_batch(
+                texts=batch_texts,
+                mode=mode,
+                target_lang=target_lang,
+                api_key=api_key
+            )
+
+            for offset, translated_text in enumerate(translated_batch):
+                sub_index = start_index + offset
+                subs[sub_index].text = translated_text
+
+                jobs[job_id]["current"] = sub_index + 1
+                jobs[job_id]["percent"] = int(((sub_index + 1) / total) * 100)
+
+            time.sleep(0.2)
+
+        subs.save(output_path, encoding="utf-8")
+
+        jobs[job_id]["status"] = "done"
+        jobs[job_id]["download"] = output_name
+
+        history = load_history()
+        history.insert(0, {
+            "id": job_id,
+            "file_name": original_name,
+            "output_name": output_name,
+            "line_count": total,
+            "mode": "OpenAI Batch" if mode == "openai" else "Google Batch",
+            "target_lang": LANGUAGES.get(target_lang, target_lang),
+            "status": "Hoàn thành",
+            "time": datetime.now().strftime("%d/%m/%Y %H:%M")
+        })
+
+        save_history(history[:50])
+
+    except Exception as e:
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = str(e)
+
+        history = load_history()
+        history.insert(0, {
+            "id": job_id,
+            "file_name": original_name,
+            "output_name": "",
+            "line_count": 0,
+            "mode": "OpenAI Batch" if mode == "openai" else "Google Batch",
+            "target_lang": LANGUAGES.get(target_lang, target_lang),
+            "status": "Thất bại",
+            "time": datetime.now().strftime("%d/%m/%Y %H:%M")
+        })
+
+        save_history(history[:50])
+
+
+@app.route("/")
+@app.route("/dashboard")
+def dashboard():
+    history = load_history()
+
+    total_files = len(history)
+    success_files = len([h for h in history if h["status"] == "Hoàn thành"])
+    total_lines = sum(h.get("line_count", 0) for h in history)
+
+    return render_template(
+        "index.html",
+        page="dashboard",
+        history=history[:5],
+        total_files=total_files,
+        success_files=success_files,
+        total_lines=total_lines
+    )
+
+
+@app.route("/translate", methods=["GET", "POST"])
+def translate_page():
+    if request.method == "POST":
+        file = request.files.get("file")
+        mode = request.form.get("mode", "google")
+        target_lang = request.form.get("target_lang", "vi")
+        api_key = request.form.get("api_key", "").strip()
+
+        if not file or file.filename == "":
+            return redirect(url_for("translate_page"))
+
+        if mode == "openai" and not api_key:
+            return "Bạn chưa nhập OpenAI API Key"
+
+        job_id = str(uuid.uuid4())[:8]
+
+        original_name = file.filename
+        file_base, file_ext = os.path.splitext(original_name)
+
+        input_name = f"{job_id}_{original_name}"
+        output_name = f"{file_base}_{target_lang}{file_ext}"
+
+        input_path = os.path.join(UPLOAD_FOLDER, input_name)
+        output_path = os.path.join(OUTPUT_FOLDER, output_name)
+
+        file.save(input_path)
+
+        jobs[job_id] = {
+            "status": "queued",
+            "current": 0,
+            "total": 0,
+            "percent": 0,
+            "download": "",
+            "error": ""
+        }
+
+        thread = threading.Thread(
+            target=translate_worker,
+            args=(
+                job_id,
+                input_path,
+                output_path,
+                original_name,
+                output_name,
+                mode,
+                target_lang,
+                api_key
+            )
+        )
+
+        thread.start()
+
+        return redirect(url_for("progress_page", job_id=job_id))
+
+    return render_template("index.html", page="translate")
+
+
+@app.route("/progress/<job_id>")
+def progress_page(job_id):
+    return render_template("index.html", page="progress", job_id=job_id)
+
+
+@app.route("/progress-data/<job_id>")
+def progress_data(job_id):
+    return jsonify(jobs.get(job_id, {
+        "status": "not_found",
+        "current": 0,
+        "total": 0,
+        "percent": 0,
+        "download": "",
+        "error": "Không tìm thấy tác vụ"
+    }))
+
+
+@app.route("/history")
+def history_page():
+    history = load_history()
+    return render_template("index.html", page="history", history=history)
+
+
+@app.route("/settings")
+def settings_page():
+    return render_template("index.html", page="settings")
+
+
+@app.route("/audio")
+def audio_page():
+    return render_template("index.html", page="audio")
+
+
+@app.route("/render")
+def render_page():
+    return render_template("index.html", page="render")
+
+
+@app.route("/download/<filename>")
+def download(filename):
+    return send_file(
+        os.path.join(OUTPUT_FOLDER, filename),
+        as_attachment=True
+    )
+
+
+@app.route("/clear-history")
+def clear_history():
+    save_history([])
+    return redirect(url_for("history_page"))
+
+
+if __name__ == "__main__":
+    app.run(debug=True, threaded=True)
+
+if __name__ == "__main__":
+    app.run(debug=True, threaded=True)

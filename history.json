@@ -1,0 +1,28 @@
+[
+  {
+    "id": "c056d060",
+    "file_name": "66.t.srt",
+    "output_name": "66.t_vi.srt",
+    "line_count": 119,
+    "mode": "Google Batch",
+    "target_lang": "Tiếng Việt",
+    "status": "Hoàn thành",
+    "time": "25/04/2026 12:53"
+  },
+  {
+    "id": "0a162ef8",
+    "file_name": "65trung.srt",
+    "output_name": "65trung_vi.srt",
+    "line_count": 10,
+    "status": "Hoàn thành",
+    "time": "25/04/2026 12:26"
+  },
+  {
+    "id": "0ce7fd41",
+    "file_name": "65trung.srt",
+    "output_name": "65trung_vi.srt",
+    "line_count": 10,
+    "status": "Hoàn thành",
+    "time": "25/04/2026 12:19"
+  }
+]
