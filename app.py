@@ -22,6 +22,7 @@ USERS = {
     "user2": "123456"
 }
 
+
 def login_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -33,14 +34,12 @@ def login_required(func):
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
-HISTORY_FILE = "history.json"
-
 VIDEO_FOLDER = "videos"
-
-os.makedirs(VIDEO_FOLDER, exist_ok=True)
+HISTORY_FILE = "history.json"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+os.makedirs(VIDEO_FOLDER, exist_ok=True)
 
 jobs = {}
 
@@ -102,7 +101,6 @@ def translate_google_batch(texts, target_lang):
 
 def translate_openai_batch(texts, target_lang, api_key):
     client = OpenAI(api_key=api_key, timeout=30)
-
     target_name = LANGUAGES.get(target_lang, "Tiếng Việt")
 
     numbered_text = "\n".join([
@@ -161,16 +159,7 @@ def translate_batch_with_fallback(texts, mode, target_lang, api_key):
     return translate_google_batch(texts, target_lang), "Google"
 
 
-def translate_worker(
-    job_id,
-    input_path,
-    output_path,
-    original_name,
-    output_name,
-    mode,
-    target_lang,
-    api_key
-):
+def translate_worker(job_id, input_path, output_path, original_name, output_name, mode, target_lang, api_key):
     final_mode = "Google"
 
     try:
@@ -185,7 +174,6 @@ def translate_worker(
         jobs[job_id]["status"] = "processing"
 
         texts = [sub.text.replace("\n", " ").strip() for sub in subs]
-
         batch_size = 20 if mode == "openai" else 10
 
         for start_index, batch_texts in split_batches(texts, batch_size):
@@ -246,8 +234,37 @@ def translate_worker(
         })
 
         save_history(history[:50])
-        
-        
+
+
+def render_worker(job_id, video_path, subtitle_path, output_path, output_name):
+    try:
+        jobs[job_id]["status"] = "processing"
+
+        ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+        subtitle_path_fixed = subtitle_path.replace("\\", "/")
+
+        cmd = [
+            ffmpeg_path,
+            "-y",
+            "-i", video_path,
+            "-vf", f"subtitles='{subtitle_path_fixed}'",
+            "-c:a", "copy",
+            output_path
+        ]
+
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+        jobs[job_id]["status"] = "done"
+        jobs[job_id]["download"] = output_name
+
+    except subprocess.CalledProcessError as e:
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = e.stderr
+
+    except Exception as e:
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = str(e)
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -270,6 +287,8 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
 @app.route("/")
 @app.route("/dashboard")
 @login_required
@@ -330,18 +349,9 @@ def translate_page():
 
         thread = threading.Thread(
             target=translate_worker,
-            args=(
-                job_id,
-                input_path,
-                output_path,
-                original_name,
-                output_name,
-                mode,
-                target_lang,
-                api_key
-            )
+            args=(job_id, input_path, output_path, original_name, output_name, mode, target_lang, api_key)
         )
-
+        thread.daemon = True
         thread.start()
 
         return redirect(url_for("progress_page", job_id=job_id))
@@ -415,36 +425,38 @@ def render_page():
         video.save(video_path)
         subtitle.save(subtitle_path)
 
-        ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+        jobs[job_id] = {
+            "status": "queued",
+            "download": "",
+            "error": ""
+        }
 
-        subtitle_path_fixed = subtitle_path.replace("\\", "/")
+        thread = threading.Thread(
+            target=render_worker,
+            args=(job_id, video_path, subtitle_path, output_path, output_name)
+        )
+        thread.daemon = True
+        thread.start()
 
-        cmd = [
-            ffmpeg_path,
-            "-y",
-            "-i", video_path,
-            "-vf", f"subtitles='{subtitle_path_fixed}'",
-            "-c:a", "copy",
-            output_path
-        ]
-
-        try:
-            subprocess.run(cmd, check=True)
-
-            return render_template(
-                "index.html",
-                page="render",
-                output_file=output_name
-            )
-
-        except Exception as e:
-            return render_template(
-                "index.html",
-                page="render",
-                error=str(e)
-            )
+        return redirect(url_for("render_progress_page", job_id=job_id))
 
     return render_template("index.html", page="render")
+
+
+@app.route("/render-progress/<job_id>")
+@login_required
+def render_progress_page(job_id):
+    return render_template("index.html", page="render_progress", job_id=job_id)
+
+
+@app.route("/render-progress-data/<job_id>")
+@login_required
+def render_progress_data(job_id):
+    return jsonify(jobs.get(job_id, {
+        "status": "not_found",
+        "download": "",
+        "error": "Không tìm thấy tác vụ render"
+    }))
 
 
 @app.route("/download/<filename>")
@@ -461,6 +473,7 @@ def download(filename):
 def clear_history():
     save_history([])
     return redirect(url_for("history_page"))
+
 
 # =====================
 # TEXT TO SPEECH
@@ -491,5 +504,7 @@ def tts():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+
 if __name__ == "__main__":
-    app.run(debug=True, threaded=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

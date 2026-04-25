@@ -27,7 +27,7 @@ h1{font-size:38px;margin:36px 0 8px}
 .number{font-size:40px;font-weight:900}
 .grid{display:grid;grid-template-columns:1fr 2fr;gap:24px}
 .upload-box{border:2px dashed #c7d2fe;border-radius:20px;background:#f8fbff;padding:32px;text-align:center;margin:18px 0}
-input,select{width:100%;padding:15px;border-radius:12px;border:1px solid #d1d5db;font-size:15px;background:white;margin-top:12px}
+input,select,textarea{width:100%;padding:15px;border-radius:12px;border:1px solid #d1d5db;font-size:15px;background:white;margin-top:12px}
 label{display:block;font-weight:800;margin-top:18px}
 button,.btn{display:inline-block;text-align:center;text-decoration:none;width:100%;margin-top:18px;padding:16px;border:none;border-radius:14px;background:#111827;color:white;font-weight:800;font-size:16px;cursor:pointer}
 button:hover,.btn:hover{background:#2563eb}
@@ -50,7 +50,9 @@ td{padding:17px 14px;border-bottom:1px solid #f1f5f9;font-weight:700}
 </head>
 
 <body>
+
 {% if page == "login" %}
+
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f7fb">
     <div class="card" style="width:420px">
         <h1 style="margin-top:0">Đăng nhập</h1>
@@ -73,9 +75,9 @@ td{padding:17px 14px;border-bottom:1px solid #f1f5f9;font-weight:700}
         </form>
     </div>
 </div>
-</body>
-</html>
-{% endif %}
+
+{% else %}
+
 <div class="app">
 
 <aside class="sidebar">
@@ -85,7 +87,7 @@ td{padding:17px 14px;border-bottom:1px solid #f1f5f9;font-weight:700}
     <a class="menu-item {% if page=='dashboard' %}active{% endif %}" href="/dashboard">▦ Tổng Quan</a>
     <a class="menu-item {% if page=='translate' or page=='progress' %}active{% endif %}" href="/translate">文 Dịch SRT</a>
     <a class="menu-item {% if page=='audio' %}active{% endif %}" href="/audio">🎙 Tool Âm Thanh</a>
-    <a class="menu-item {% if page=='render' %}active{% endif %}" href="/render">🎥 Auto Render</a>
+    <a class="menu-item {% if page=='render' or page=='render_progress' %}active{% endif %}" href="/render">🎥 Auto Render</a>
 
     <div class="menu-title">HỆ THỐNG</div>
     <a class="menu-item {% if page=='history' %}active{% endif %}" href="/history">📁 Lịch sử xử lý</a>
@@ -95,16 +97,16 @@ td{padding:17px 14px;border-bottom:1px solid #f1f5f9;font-weight:700}
 <main class="main">
 
 <div class="topbar">
-    <div class="badge">🟢 Local Tool</div>
+    <div class="badge">🟢 Online Tool</div>
     <div>🔔</div>
     <div class="avatar">T</div>
     <strong>{{ session.get("username", "Admin") }}</strong>
-<a href="/logout" style="text-decoration:none;color:#dc2626;font-weight:800">Đăng xuất</a>
+    <a href="/logout" style="text-decoration:none;color:#dc2626;font-weight:800">Đăng xuất</a>
 </div>
 
 {% if page == "dashboard" %}
 <h1>Tổng Quan Hoạt Động</h1>
-<p class="subtitle">Quản lý dịch phụ đề SRT tiếng Trung sang nhiều ngôn ngữ trên máy tính của bạn.</p>
+<p class="subtitle">Quản lý dịch phụ đề SRT, chuyển văn bản thành giọng nói và render video.</p>
 
 <section class="stats">
     <div class="card">
@@ -252,10 +254,10 @@ function checkProgress(){
             document.getElementById("detail").innerText =
                 "Đã xử lý " + data.current + " / " + data.total + " dòng";
 
-if(data.note){
-    document.getElementById("result").innerHTML =
-        '<div class="notice">' + data.note + '</div>';
-}
+            if(data.note){
+                document.getElementById("result").innerHTML =
+                    '<div class="notice">' + data.note + '</div>';
+            }
 
             if(data.status === "done"){
                 document.getElementById("result").innerHTML =
@@ -340,7 +342,7 @@ checkProgress();
     <p><strong>Ngôn ngữ nguồn:</strong> Tiếng Trung Quốc</p>
     <p><strong>Ngôn ngữ đích:</strong> Việt / Anh / Hàn / Nhật</p>
     <p><strong>Chế độ dịch:</strong> Google Translate hoặc OpenAI</p>
-    <p><strong>Thư mục lưu file:</strong> D:\web_dich_srt\outputs</p>
+    <p><strong>Chức năng:</strong> Dịch SRT / Text to Speech / Auto Render Video</p>
 
     <div class="notice">
         Nếu dùng OpenAI, bạn cần API key có billing/credit.
@@ -351,26 +353,25 @@ checkProgress();
 
 {% if page == "audio" %}
 <h1>Tool Âm Thanh</h1>
+<p class="subtitle">Chuyển văn bản thành giọng nói MP3.</p>
 
-<div class="card dev-box">
-    <div class="dev-icon">🎙</div>
-    <hr>
+<div class="card" style="max-width:760px">
+    <h2>🎙 Text to Speech</h2>
 
-<h2>🎙 Text to Speech</h2>
+    <textarea id="tts_text" style="height:130px" placeholder="Nhập văn bản..."></textarea>
 
-<textarea id="tts_text" style="width:100%;height:100px"
-placeholder="Nhập văn bản..."></textarea>
+    <label>Ngôn ngữ giọng đọc</label>
+    <select id="tts_lang">
+        <option value="vi">Tiếng Việt</option>
+        <option value="en">English</option>
+        <option value="ko">한국어</option>
+        <option value="ja">日本語</option>
+    </select>
 
-<select id="tts_lang">
-    <option value="vi">Tiếng Việt</option>
-    <option value="en">English</option>
-    <option value="ko">한국어</option>
-    <option value="ja">日本語</option>
-</select>
+    <button onclick="runTTS()">Tạo giọng nói</button>
 
-<button onclick="runTTS()">Tạo giọng nói</button>
-
-<div id="tts_result"></div>
+    <div id="tts_result"></div>
+</div>
 
 <script>
 function runTTS(){
@@ -388,29 +389,27 @@ function runTTS(){
     .then(res => res.json())
     .then(data => {
         if(data.error){
-            document.getElementById("tts_result").innerText = data.error;
+            document.getElementById("tts_result").innerHTML =
+                '<div class="notice" style="background:#fef2f2;color:#dc2626">' + data.error + '</div>';
             return;
         }
 
         document.getElementById("tts_result").innerHTML =
-            `<audio controls src="/download/${data.file}"></audio>`;
+            '<div class="notice">✅ Tạo audio thành công</div>' +
+            '<audio controls style="width:100%;margin-top:18px" src="/download/' + data.file + '"></audio>' +
+            '<a class="btn" href="/download/' + data.file + '">⬇ Tải file MP3</a>';
     });
 }
 </script>
-</div>
 {% endif %}
 
 
 {% if page == "render" %}
-<h1>Auto Render</h1>
-
-<div class="card dev-box">
-    <div class="dev-icon">🎥</div>
-    {% if page == "render" %}
 <h1>Auto Render Video</h1>
 <p class="subtitle">Upload video và file SRT để ghép phụ đề cứng vào video.</p>
 
 <div class="card" style="max-width:760px">
+    <div class="dev-icon" style="text-align:center">🎥</div>
 
     {% if error %}
     <div class="notice" style="background:#fef2f2;color:#dc2626;white-space:pre-wrap">
@@ -418,33 +417,82 @@ function runTTS(){
     </div>
     {% endif %}
 
-    {% if output_file %}
-    <div class="notice">
-        ✅ Render hoàn thành!
-    </div>
-
-    <a class="btn" href="/download/{{ output_file }}">
-        ⬇ Tải video đã render
-    </a>
-    {% endif %}
-
     <form method="POST" enctype="multipart/form-data">
-        <label>Chọn video</label>
-        <input type="file" name="video" accept=".mp4,.mov,.mkv" required>
+        <div class="upload-box">
+            <strong>🎬 Chọn video</strong>
+            <input type="file" name="video" accept=".mp4,.mov,.mkv" required>
+        </div>
 
-        <label>Chọn phụ đề SRT</label>
-        <input type="file" name="subtitle" accept=".srt" required>
+        <div class="upload-box">
+            <strong>📄 Chọn phụ đề SRT</strong>
+            <input type="file" name="subtitle" accept=".srt" required>
+        </div>
 
         <button type="submit">🎥 Bắt đầu render</button>
     </form>
-</div>
-{% endif %}
+
+    <div class="notice">
+        Nên test video ngắn trước. Render Free có thể chậm với video dài.
+    </div>
 </div>
 {% endif %}
 
 
+{% if page == "render_progress" %}
+<h1>Đang render video</h1>
+<p class="subtitle">Video đang được xử lý ở nền. Vui lòng không tắt trang này.</p>
+
+<div class="card" style="max-width:760px">
+    <h2 id="status">⏳ Đang xử lý...</h2>
+
+    <div class="progress-wrap">
+        <div id="renderBar" class="progress-bar" style="width:35%"></div>
+    </div>
+
+    <p id="renderDetail" style="color:#6b7280;font-weight:700">
+        Render video có thể mất vài phút tùy độ dài video.
+    </p>
+
+    <div id="result"></div>
+</div>
+
+<script>
+const renderJobId = "{{ job_id }}";
+
+function checkRender(){
+    fetch("/render-progress-data/" + renderJobId)
+    .then(res => res.json())
+    .then(data => {
+        if(data.status === "done"){
+            document.getElementById("renderBar").style.width = "100%";
+            document.getElementById("status").innerText = "✅ Render hoàn thành";
+            document.getElementById("renderDetail").innerText = "Video đã sẵn sàng để tải xuống.";
+            document.getElementById("result").innerHTML =
+                '<a class="btn" href="/download/' + data.download + '">⬇ Tải video đã render</a>';
+            return;
+        }
+
+        if(data.status === "error"){
+            document.getElementById("renderBar").style.width = "100%";
+            document.getElementById("status").innerText = "❌ Render lỗi";
+            document.getElementById("renderDetail").innerText = "Vui lòng kiểm tra lại video hoặc file SRT.";
+            document.getElementById("result").innerHTML =
+                '<div class="notice" style="background:#fef2f2;color:#dc2626;white-space:pre-wrap">' + data.error + '</div>';
+            return;
+        }
+
+        setTimeout(checkRender, 3000);
+    });
+}
+
+checkRender();
+</script>
+{% endif %}
 
 </main>
 </div>
+
+{% endif %}
+
 </body>
 </html>
