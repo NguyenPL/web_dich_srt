@@ -50,32 +50,6 @@ td{padding:17px 14px;border-bottom:1px solid #f1f5f9;font-weight:700}
 </head>
 
 <body>
-{% if page == "login" %}
-<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f7fb">
-    <div class="card" style="width:420px">
-        <h1 style="margin-top:0">Đăng nhập</h1>
-        <p class="subtitle">Vui lòng nhập tài khoản để dùng tool.</p>
-
-        {% if error %}
-        <div class="notice" style="background:#fef2f2;color:#dc2626">
-            {{ error }}
-        </div>
-        {% endif %}
-
-        <form method="POST">
-            <label>Tài khoản</label>
-            <input type="text" name="username" required>
-
-            <label>Mật khẩu</label>
-            <input type="password" name="password" required>
-
-            <button type="submit">Đăng nhập</button>
-        </form>
-    </div>
-</div>
-</body>
-</html>
-{% endif %}
 <div class="app">
 
 <aside class="sidebar">
@@ -98,8 +72,7 @@ td{padding:17px 14px;border-bottom:1px solid #f1f5f9;font-weight:700}
     <div class="badge">🟢 Local Tool</div>
     <div>🔔</div>
     <div class="avatar">T</div>
-    <strong>{{ session.get("username", "Admin") }}</strong>
-<a href="/logout" style="text-decoration:none;color:#dc2626;font-weight:800">Đăng xuất</a>
+    <strong>Admin</strong>
 </div>
 
 {% if page == "dashboard" %}

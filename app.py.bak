@@ -240,8 +240,6 @@ def translate_worker(
         })
 
         save_history(history[:50])
-        
-        
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -266,7 +264,6 @@ def logout():
     return redirect(url_for("login"))
 @app.route("/")
 @app.route("/dashboard")
-@login_required
 def dashboard():
     history = load_history()
 
@@ -285,7 +282,6 @@ def dashboard():
 
 
 @app.route("/translate", methods=["GET", "POST"])
-@login_required
 def translate_page():
     if request.method == "POST":
         file = request.files.get("file")
@@ -344,13 +340,11 @@ def translate_page():
 
 
 @app.route("/progress/<job_id>")
-@login_required
 def progress_page(job_id):
     return render_template("index.html", page="progress", job_id=job_id)
 
 
 @app.route("/progress-data/<job_id>")
-@login_required
 def progress_data(job_id):
     return jsonify(jobs.get(job_id, {
         "status": "not_found",
@@ -364,32 +358,27 @@ def progress_data(job_id):
 
 
 @app.route("/history")
-@login_required
 def history_page():
     history = load_history()
     return render_template("index.html", page="history", history=history)
 
 
 @app.route("/settings")
-@login_required
 def settings_page():
     return render_template("index.html", page="settings")
 
 
 @app.route("/audio")
-@login_required
 def audio_page():
     return render_template("index.html", page="audio")
 
 
 @app.route("/render")
-@login_required
 def render_page():
     return render_template("index.html", page="render")
 
 
 @app.route("/download/<filename>")
-@login_required
 def download(filename):
     return send_file(
         os.path.join(OUTPUT_FOLDER, filename),
@@ -398,7 +387,6 @@ def download(filename):
 
 
 @app.route("/clear-history")
-@login_required
 def clear_history():
     save_history([])
     return redirect(url_for("history_page"))
@@ -418,7 +406,6 @@ def text_to_speech(text, lang):
 
 
 @app.route("/tts", methods=["POST"])
-@login_required
 def tts():
     text = request.form.get("text")
     lang = request.form.get("lang", "vi")
