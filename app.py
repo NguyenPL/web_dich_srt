@@ -38,7 +38,6 @@ GOOGLE_LANG_MAP = {
 def load_history():
     if not os.path.exists(HISTORY_FILE):
         return []
-
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -70,7 +69,7 @@ def translate_google_batch(texts, target_lang):
 
         try:
             results.append(translator.translate(text))
-            time.sleep(0.15)
+            time.sleep(0.12)
         except Exception:
             results.append(text)
 
@@ -78,7 +77,7 @@ def translate_google_batch(texts, target_lang):
 
 
 def translate_openai_batch(texts, target_lang, api_key):
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key, timeout=30)
 
     target_name = LANGUAGES.get(target_lang, "Tiếng Việt")
 
@@ -89,44 +88,35 @@ def translate_openai_batch(texts, target_lang, api_key):
     prompt = f"""
 Bạn là chuyên gia dịch phụ đề SRT từ tiếng Trung sang {target_name}.
 
-Yêu cầu bắt buộc:
+Yêu cầu:
 - Dịch tự nhiên, dễ hiểu.
 - Giữ đúng nghĩa thoại.
-- Câu ngắn gọn, phù hợp phụ đề video.
 - Không thêm giải thích.
-- Không thêm chú thích.
 - Không bỏ dòng.
 - Không gộp dòng.
 - Giữ nguyên số thứ tự đầu dòng.
 - Mỗi dòng dịch tương ứng đúng với một dòng gốc.
 - Chỉ trả về danh sách bản dịch.
 
-Nội dung cần dịch:
+Nội dung:
 {numbered_text}
 """
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0.2
     )
 
     raw = response.choices[0].message.content.strip().split("\n")
 
     translations = []
-
     for line in raw:
         line = line.strip()
-
         if not line:
             continue
-
         if ". " in line:
             translations.append(line.split(". ", 1)[1].strip())
-        elif "、" in line:
-            translations.append(line.split("、", 1)[1].strip())
         else:
             translations.append(line)
 
@@ -136,11 +126,15 @@ Nội dung cần dịch:
     return translations[:len(texts)]
 
 
-def translate_batch(texts, mode, target_lang, api_key):
+def translate_batch_with_fallback(texts, mode, target_lang, api_key):
     if mode == "openai":
-        return translate_openai_batch(texts, target_lang, api_key)
+        try:
+            return translate_openai_batch(texts, target_lang, api_key), "OpenAI"
+        except Exception as e:
+            print("OpenAI lỗi, chuyển sang Google:", str(e))
+            return translate_google_batch(texts, target_lang), "Google Fallback"
 
-    return translate_google_batch(texts, target_lang)
+    return translate_google_batch(texts, target_lang), "Google"
 
 
 def translate_worker(
@@ -153,6 +147,8 @@ def translate_worker(
     target_lang,
     api_key
 ):
+    final_mode = "Google"
+
     try:
         try:
             subs = pysrt.open(input_path, encoding="utf-8")
@@ -166,18 +162,20 @@ def translate_worker(
 
         texts = [sub.text.replace("\n", " ").strip() for sub in subs]
 
-        if mode == "openai":
-            batch_size = 20
-        else:
-            batch_size = 10
+        batch_size = 20 if mode == "openai" else 10
 
         for start_index, batch_texts in split_batches(texts, batch_size):
-            translated_batch = translate_batch(
+            translated_batch, used_mode = translate_batch_with_fallback(
                 texts=batch_texts,
                 mode=mode,
                 target_lang=target_lang,
                 api_key=api_key
             )
+
+            final_mode = used_mode
+
+            if used_mode == "Google Fallback":
+                jobs[job_id]["note"] = "OpenAI lỗi hoặc hết quota, đã tự chuyển sang Google Translate."
 
             for offset, translated_text in enumerate(translated_batch):
                 sub_index = start_index + offset
@@ -186,7 +184,7 @@ def translate_worker(
                 jobs[job_id]["current"] = sub_index + 1
                 jobs[job_id]["percent"] = int(((sub_index + 1) / total) * 100)
 
-            time.sleep(0.2)
+            time.sleep(0.15)
 
         subs.save(output_path, encoding="utf-8")
 
@@ -199,7 +197,7 @@ def translate_worker(
             "file_name": original_name,
             "output_name": output_name,
             "line_count": total,
-            "mode": "OpenAI Batch" if mode == "openai" else "Google Batch",
+            "mode": final_mode,
             "target_lang": LANGUAGES.get(target_lang, target_lang),
             "status": "Hoàn thành",
             "time": datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -217,7 +215,7 @@ def translate_worker(
             "file_name": original_name,
             "output_name": "",
             "line_count": 0,
-            "mode": "OpenAI Batch" if mode == "openai" else "Google Batch",
+            "mode": final_mode,
             "target_lang": LANGUAGES.get(target_lang, target_lang),
             "status": "Thất bại",
             "time": datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -257,7 +255,7 @@ def translate_page():
             return redirect(url_for("translate_page"))
 
         if mode == "openai" and not api_key:
-            return "Bạn chưa nhập OpenAI API Key"
+            mode = "google"
 
         job_id = str(uuid.uuid4())[:8]
 
@@ -278,7 +276,8 @@ def translate_page():
             "total": 0,
             "percent": 0,
             "download": "",
-            "error": ""
+            "error": "",
+            "note": ""
         }
 
         thread = threading.Thread(
@@ -315,7 +314,8 @@ def progress_data(job_id):
         "total": 0,
         "percent": 0,
         "download": "",
-        "error": "Không tìm thấy tác vụ"
+        "error": "Không tìm thấy tác vụ",
+        "note": ""
     }))
 
 
@@ -353,9 +353,6 @@ def clear_history():
     save_history([])
     return redirect(url_for("history_page"))
 
-
-if __name__ == "__main__":
-    app.run(debug=True, threaded=True)
 
 if __name__ == "__main__":
     app.run(debug=True, threaded=True)

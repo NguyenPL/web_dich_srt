@@ -225,6 +225,11 @@ function checkProgress(){
             document.getElementById("detail").innerText =
                 "Đã xử lý " + data.current + " / " + data.total + " dòng";
 
+if(data.note){
+    document.getElementById("result").innerHTML =
+        '<div class="notice">' + data.note + '</div>';
+}
+
             if(data.status === "done"){
                 document.getElementById("result").innerHTML =
                     '<a class="btn" href="/download/' + data.download + '">⬇ Tải file đã dịch</a>';
